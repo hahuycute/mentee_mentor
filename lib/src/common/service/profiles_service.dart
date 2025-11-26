@@ -1,46 +1,115 @@
+import 'package:http/http.dart' as http;
 import 'package:mentee_mentor/src/common/api/api_client.dart';
-class ProfilesService { 
+import 'package:mentee_mentor/src/common/api/api_exception.dart';
+import 'dart:convert';
+import 'dart:io';
+
+class ProfilesService {
   final _api = ApiClient();
-  Future<Map<String,dynamic>> getMentorProfile(int userId) async{
-    final data = await _api.get('/profiles/mentor/$userId', auth: true);
-    return Map<String,dynamic>.from(data as Map);
+
+  Future<Map<String, dynamic>> getMentorProfile(int userId) async {
+    try {
+      final raw = await _api.get('/profiles/mentor/$userId', auth: true);
+      final data = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
+      return Map<String, dynamic>.from(data as Map);
+    } on ApiException {
+      rethrow;
+    }
   }
-  Future<Map<String,dynamic>> upsertMentorProfile({
+
+  Future<Map<String, dynamic>> getMenteeProfile(int userId) async {
+    try {
+      final raw = await _api.get('/profiles/mentee/$userId', auth: true);
+      final data = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
+      return Map<String, dynamic>.from(data as Map);
+    } on ApiException {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> upsertMentorProfile({
     required String fullName,
     String? school,
-    List<String>? expertise,
+    List<int>? expertiseIds,
     String? degree,
     int? yearsExp,
     String? bio,
-  }) async{
-    final body = <String,dynamic>{
-      'fullName':fullName,
-      if(school != null) 'school': school,
-      'expertise': expertise ?? <String>[],
-      if(degree != null) 'degree': degree,
-      if(yearsExp != null) 'yearsExp': yearsExp,
-      if(bio != null) 'bio': bio,
+    File? avatarFile,
+  }) async {
+    final fields = <String, String>{
+      'fullName': fullName,
+      if (school != null && school.isNotEmpty) 'school': school,
+      if (degree != null && degree.isNotEmpty) 'degree': degree,
+      if (bio != null && bio.isNotEmpty) 'bio': bio,
+      if (yearsExp != null) 'yearsExp': yearsExp.toString(),
     };
-    final data = await _api.post('/profiles/mentor', body: body, auth: true);
-    return Map<String,dynamic>.from(data as Map);
-  }
-  Future<Map<String, dynamic>> getMenteeProfile(int userId) async {
-    final data = await _api.get('/profiles/mentee/$userId', auth: true);
+
+    if (expertiseIds != null && expertiseIds.isNotEmpty) {
+      fields['expertise'] = jsonEncode(expertiseIds);
+    }
+
+    List<http.MultipartFile>? files;
+    if (avatarFile != null) {
+      // Đọc bytes thay vì dùng fromPath (fix Android content://)
+      final bytes = await avatarFile.readAsBytes();
+      final filename = avatarFile.path.split('/').last;
+      files = [
+        http.MultipartFile.fromBytes(
+          'avatar',
+          bytes,
+          filename: filename.isEmpty ? 'avatar.png' : filename,
+        ),
+      ];
+    }
+
+    final raw = await _api.postMultipart(
+      '/profiles/mentor',
+      fields: fields,
+      files: files,
+      auth: true,
+    );
+
+    final data = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
     return Map<String, dynamic>.from(data as Map);
   }
 
   Future<Map<String, dynamic>> upsertMenteeProfile({
     required String fullName,
     String? goals,
-    List<String>? interests,
+    List<int>? interestIds,
+    File? avatarFile,
   }) async {
-    final body = <String, dynamic>{
+    final fields = <String, String>{
       'fullName': fullName,
-      if (goals != null) 'goals': goals,
-      'interests': interests ?? <String>[],
+      if (goals != null && goals.isNotEmpty) 'goals': goals,
     };
-    final data = await _api.post('/profiles/mentee', body: body, auth: true);
+
+    if (interestIds != null && interestIds.isNotEmpty) {
+      fields['interests'] = jsonEncode(interestIds);
+    }
+
+    List<http.MultipartFile>? files;
+    if (avatarFile != null) {
+      // Đọc bytes thay vì dùng fromPath
+      final bytes = await avatarFile.readAsBytes();
+      final filename = avatarFile.path.split('/').last;
+      files = [
+        http.MultipartFile.fromBytes(
+          'avatar',
+          bytes,
+          filename: filename.isEmpty ? 'avatar.png' : filename,
+        ),
+      ];
+    }
+
+    final raw = await _api.postMultipart(
+      '/profiles/mentee',
+      fields: fields,
+      files: files,
+      auth: true,
+    );
+
+    final data = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
     return Map<String, dynamic>.from(data as Map);
   }
-
 }

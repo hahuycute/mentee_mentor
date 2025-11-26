@@ -34,11 +34,14 @@ class _AddPostPageState extends State<AddPostPage> {
         isPublic: _isPublic,
       );
       if (!mounted) return;
-      Navigator.of(context).pop(true); // Trả về true để reload danh sách bài viết
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đăng bài thành công! 🎉')));
+      Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       _showSnack(e.message);
     } catch (e) {
-      _showSnack('Đăng bài thất bại');
+      _showSnack('Đăng bài thất bại: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -65,9 +68,11 @@ class _AddPostPageState extends State<AddPostPage> {
                   TextFormField(
                     controller: _title,
                     decoration: const InputDecoration(labelText: 'Tiêu đề'),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Nhập tiêu đề'
-                        : (v.length > 200 ? 'Tối đa 200 ký tự' : null),
+                    validator:
+                        (v) =>
+                            (v == null || v.trim().isEmpty)
+                                ? 'Nhập tiêu đề'
+                                : (v.length > 200 ? 'Tối đa 200 ký tự' : null),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -75,9 +80,13 @@ class _AddPostPageState extends State<AddPostPage> {
                     decoration: const InputDecoration(labelText: 'Nội dung'),
                     minLines: 4,
                     maxLines: 8,
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Nhập nội dung'
-                        : (v.length > 5000 ? 'Tối đa 5000 ký tự' : null),
+                    validator:
+                        (v) =>
+                            (v == null || v.trim().isEmpty)
+                                ? 'Nhập nội dung'
+                                : (v.length > 5000
+                                    ? 'Tối đa 5000 ký tự'
+                                    : null),
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
@@ -90,9 +99,10 @@ class _AddPostPageState extends State<AddPostPage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const CircularProgressIndicator()
-                          : const Text('Đăng bài'),
+                      child:
+                          _loading
+                              ? const CircularProgressIndicator()
+                              : const Text('Đăng bài'),
                     ),
                   ),
                 ],

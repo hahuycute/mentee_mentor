@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:mentee_mentor/src/common/api/api_exception.dart';
 import 'package:mentee_mentor/src/common/service/schedules_service.dart';
 import 'package:mentee_mentor/src/modules/add_schedule/presentation/add_schedule_page.dart';
 
@@ -12,95 +12,117 @@ class MySchedulesPage extends StatefulWidget {
 
 class _MySchedulesPageState extends State<MySchedulesPage> {
   final _schedules = SchedulesService();
-  late Future<List<Map<String, dynamic>>> _schedulesFuture;
-  
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
-  List<Map<String, dynamic>> _allSchedules = [];
-  Map<DateTime, List<Map<String, dynamic>>> _eventsByDay = {};
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+  String? _error;
+  String _statusFilter = 'ALL';
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _selectedDay = DateTime.now();
-    _schedulesFuture = _loadSchedules();
+    _load();
   }
 
-  Future<List<Map<String, dynamic>>> _loadSchedules() async {
-    try {
-      final schedules = await _schedules.getMentorSchedules();
-      _allSchedules = schedules;
-      _groupSchedulesByDay();
-      return schedules;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  void _groupSchedulesByDay() {
-  _eventsByDay.clear();
-  for (final schedule in _allSchedules) {
-    final startAtStr = schedule['startAt'] as String?;
-    if (startAtStr != null) {
-      try {
-        final startAt = DateTime.parse(startAtStr);
-        // CONVERT VỀ LOCAL TIMEZONE
-        final localStartAt = startAt.toLocal();
-        final day = DateTime(localStartAt.year, localStartAt.month, localStartAt.day);
-        
-        if (_eventsByDay[day] == null) {
-          _eventsByDay[day] = [];
-        }
-        _eventsByDay[day]!.add(schedule);
-      } catch (e) {
-        // Skip invalid dates
-      }
-    }
-  }
-}
-
-  List<Map<String, dynamic>> _getEventsForDay(DateTime day) {
-    final normalizedDay = DateTime(day.year, day.month, day.day);
-    return _eventsByDay[normalizedDay] ?? [];
-  }
-
-  Future<void> _refresh() async {
+  Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
-      _schedulesFuture = _loadSchedules();
+      _loading = true;
+      _error = null;
     });
-  }
-
-  Future<void> _goAddSchedule() async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddSchedulePage()),
-    );
-    if (result == true) {
-      _refresh();
+    try {
+      final status = _statusFilter == 'ALL' ? null : _statusFilter;
+      final data = await _schedules.getMySchedules(status: status);
+      if (!mounted) return;
+      setState(() => _list = data);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _formatTime(String? dateTimeStr) {
-  if (dateTimeStr == null) return 'N/A';
-  try {
-    final dt = DateTime.parse(dateTimeStr);
-    // CONVERT VỀ LOCAL TIMEZONE
-    final localDt = dt.toLocal();
-    return '${localDt.hour.toString().padLeft(2, '0')}:${localDt.minute.toString().padLeft(2, '0')}';
-  } catch (e) {
-    return dateTimeStr;
+  List<Map<String, dynamic>> _getFiltered() {
+    var filtered = _list;
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      filtered = filtered.where((s) {
+        final topic = (s['topic'] ?? '').toString().toLowerCase();
+        final desc = (s['description'] ?? '').toString().toLowerCase();
+        return topic.contains(q) || desc.contains(q);
+      }).toList();
+    }
+    // Sort upcoming
+    filtered.sort((a, b) => DateTime.parse(a['startAt']).compareTo(DateTime.parse(b['startAt'])));
+    return filtered;
   }
-}
 
-  Color _getStatusColor(String? status) {
-    switch (status?.toUpperCase()) {
+  Future<void> _delete(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: const Text('Bạn có chắc muốn xóa lịch này?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await _schedules.deleteSchedule(id);
+      if (!mounted) return;
+      _showSnack('✅ Xóa lịch thành công!');
+      _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _showSnack(e.message);
+    }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  String _formatTime(String iso) {
+    final dt = DateTime.parse(iso).toLocal();
+    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
       case 'AVAILABLE':
         return Colors.green;
-      case 'CANCELLED':
-        return Colors.red;
       case 'BOOKED':
         return Colors.orange;
+      case 'CANCELLED':
+        return Colors.red;
       default:
         return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'AVAILABLE':
+        return Icons.check_circle;
+      case 'BOOKED':
+        return Icons.event_busy;
+      case 'CANCELLED':
+        return Icons.cancel;
+      default:
+        return Icons.info;
     }
   }
 
@@ -108,211 +130,257 @@ class _MySchedulesPageState extends State<MySchedulesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lịch của tôi'),
+        title: const Text('My Schedules'),
         actions: [
           IconButton(
-            onPressed: _goAddSchedule,
-            icon: const Icon(Icons.add),
-            tooltip: 'Thêm lịch mới',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddSchedulePage()),
+              );
+              if (!mounted) return;
+              if (result == true) _load();
+            },
+            icon: const Icon(Icons.add_circle),
+            tooltip: 'Tạo lịch mới',
           ),
         ],
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _schedulesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Lỗi: ${snapshot.error}'),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _refresh,
-                    child: const Text('Thử lại'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: _refresh,
+      body: Column(
+        children: [
+          // Search + Filter
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Calendar Widget
-                TableCalendar<Map<String, dynamic>>(
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  eventLoader: _getEventsForDay,
-                  calendarFormat: CalendarFormat.month,
-                  startingDayOfWeek: StartingDayOfWeek.monday,
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
-                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: '🔍 Tìm kiếm theo chủ đề...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
                   ),
-                  calendarStyle: CalendarStyle(
-                    todayDecoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.7),
-                      shape: BoxShape.circle,
-                    ),
-                    selectedDecoration: const BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                    markersMaxCount: 3,
-                    markerDecoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  onDaySelected: (selectedDay, focusedDay) {
-                    if (!isSameDay(_selectedDay, selectedDay)) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                    }
-                  },
-                  onPageChanged: (focusedDay) {
-                    _focusedDay = focusedDay;
-                  },
+                  onChanged: (v) => setState(() => _searchQuery = v),
                 ),
-                const Divider(),
-                // Events for selected day
-                Expanded(
-                  child: _buildEventsList(),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: ['ALL', 'AVAILABLE', 'BOOKED', 'CANCELLED'].map((s) {
+                      final isActive = _statusFilter == s;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(s),
+                          selected: isActive,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() => _statusFilter = s);
+                              _load();
+                            }
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEventsList() {
-    final selectedEvents = _getEventsForDay(_selectedDay ?? DateTime.now());
-    
-    if (selectedEvents.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.event_busy, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('Không có lịch nào trong ngày này'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _goAddSchedule,
-              child: const Text('Tạo lịch mới'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: selectedEvents.length,
-      itemBuilder: (context, index) {
-        final schedule = selectedEvents[index];
-        final status = schedule['status'] as String?;
-        
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            leading: Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: _getStatusColor(status),
-                shape: BoxShape.circle,
-              ),
-            ),
-            title: Text(
-              schedule['topic'] ?? 'Không có chủ đề',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.access_time, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${_formatTime(schedule['startAt'])} - ${_formatTime(schedule['endAt'])}',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(Icons.people, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Đã đặt: ${schedule['bookedCount'] ?? 0}/${schedule['capacity'] ?? 1}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getStatusColor(status),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                status == 'AVAILABLE' ? 'Khả dụng' : 
-                status == 'CANCELLED' ? 'Đã hủy' : 
-                status == 'BOOKED' ? 'Đã đặt' : status ?? 'N/A',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            onTap: () => _showScheduleDetails(schedule),
           ),
-        );
-      },
-    );
-  }
 
-  void _showScheduleDetails(Map<String, dynamic> schedule) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(schedule['topic'] ?? 'Chi tiết lịch'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Bắt đầu: ${_formatTime(schedule['startAt'])}'),
-            Text('Kết thúc: ${_formatTime(schedule['endAt'])}'),
-            Text('Capacity: ${schedule['capacity']}'),
-            Text('Đã đặt: ${schedule['bookedCount'] ?? 0}'),
-            Text('Trạng thái: ${schedule['status']}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
+          // List
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('⚠️ $_error'),
+                            const SizedBox(height: 16),
+                            ElevatedButton(onPressed: _load, child: const Text('Thử lại')),
+                          ],
+                        ),
+                      )
+                    : _getFiltered().isEmpty
+                        ? const Center(child: Text('📅 Chưa có lịch nào'))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _getFiltered().length,
+                            itemBuilder: (ctx, i) {
+                              final schedule = _getFiltered()[i];
+                              final status = schedule['status'] as String;
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: InkWell(
+                                  onTap: () => _showDetail(schedule),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                schedule['topic'] ?? '',
+                                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            Icon(_statusIcon(status), color: _statusColor(status), size: 20),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              status,
+                                              style: TextStyle(color: _statusColor(status), fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                        if (schedule['description'] != null) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            schedule['description'],
+                                            style: TextStyle(color: Colors.grey[700]),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.access_time, size: 16, color: Colors.blue),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                '${_formatTime(schedule['startAt'])} → ${_formatTime(schedule['endAt'])}',
+                                                style: const TextStyle(fontSize: 13),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: () => _showDetail(schedule),
+                                              icon: const Icon(Icons.visibility, size: 16),
+                                              label: const Text('Chi tiết'),
+                                            ),
+                                            if (status != 'CANCELLED') ...[
+                                              const SizedBox(width: 8),
+                                              TextButton.icon(
+                                                onPressed: () => _delete(schedule['id']),
+                                                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                                label: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
           ),
         ],
       ),
+    );
+  }
+
+  void _showDetail(Map<String, dynamic> schedule) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.all(24),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    schedule['topic'] ?? '',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _statusColor(schedule['status']).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_statusIcon(schedule['status']), size: 16, color: _statusColor(schedule['status'])),
+                      const SizedBox(width: 4),
+                      Text(
+                        schedule['status'],
+                        style: TextStyle(color: _statusColor(schedule['status']), fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _detailRow('📅 Ngày', _formatTime(schedule['startAt']).split(' ')[0]),
+            const SizedBox(height: 12),
+            _detailRow('🕐 Thời gian', '${_formatTime(schedule['startAt']).split(' ')[1]} - ${_formatTime(schedule['endAt']).split(' ')[1]}'),
+            const SizedBox(height: 12),
+            _detailRow('👥 Sức chứa', '${schedule['capacity'] ?? 1} người'),
+            if (schedule['description'] != null) ...[
+              const SizedBox(height: 24),
+              const Text('📝 Mô tả', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(schedule['description'], style: const TextStyle(fontSize: 14)),
+            ],
+            const SizedBox(height: 24),
+            if (schedule['status'] != 'CANCELLED')
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _delete(schedule['id']);
+                },
+                icon: const Icon(Icons.delete),
+                label: const Text('🗑️ Xóa Lịch'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        Expanded(child: Text(value)),
+      ],
     );
   }
 }
