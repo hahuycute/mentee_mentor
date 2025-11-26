@@ -38,9 +38,14 @@ dependencies:
   shared_preferences: ^2.2.2
   motion_tab_bar: ^2.0.2
   table_calendar: ^3.0.9
+  image_picker: ^1.0.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -54,7 +59,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
+  assets:
+    - assets/images/logoMenteeMentor.png
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

@@ -1,4 +1,4 @@
 class AppConstants {
-  static const String kBaseUrl = 'http://172.25.8.84:3000/api';
+  static const String kBaseUrl = 'http://10.120.108.208:3000/api';
   
 }
