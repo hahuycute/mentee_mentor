@@ -79,14 +79,11 @@ class ApiClient {
 
   dynamic _handle(http.Response res) {
     final code = res.statusCode;
-    print('DEBUG Response status: $code');
-    print('DEBUG Response body: ${res.body}');
 
     dynamic decoded;
     try {
       decoded = res.body.isNotEmpty ? jsonDecode(res.body) : null;
     } catch (e) {
-      print('DEBUG JSON decode error: $e');
       throw ApiException('Invalid JSON response', statusCode: code);
     }
 
@@ -101,7 +98,6 @@ class ApiClient {
       String message = error['message'] ?? 'Request failed';
 
       if (error['details'] != null) {
-        print('DEBUG Validation details: ${error['details']}');
         message += ' - ${error['details']}';
       }
 

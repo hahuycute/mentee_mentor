@@ -16,44 +16,63 @@ class PostsService {
     if (authorId != null) url += '&authorId=$authorId';
     if (search != null && search.isNotEmpty) url += '&search=$search';
 
-    print('DEBUG: Fetching posts from: $url');
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    final response = await _api.get(url, auth: true);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.get(url, auth: true);
 
-    print('DEBUG: Response type: ${response.runtimeType}');
-    print('DEBUG: Response data: $response');
+        if (response is Map) {
+          if (response['success'] == true) {
+            return {
+              'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
+              'pagination': Map<String, dynamic>.from(response['pagination'] ?? {}),
+            };
+          }
 
-    if (response is Map) {
-      if (response['success'] == true) {
-        return {
-          'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
-          'pagination': Map<String, dynamic>.from(response['pagination'] ?? {}),
-        };
-      }
+          if (response.containsKey('data') && response.containsKey('pagination')) {
+            return {
+              'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
+              'pagination': Map<String, dynamic>.from(response['pagination'] ?? {}),
+            };
+          }
 
-      if (response.containsKey('data') && response.containsKey('pagination')) {
-        return {
-          'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
-          'pagination': Map<String, dynamic>.from(response['pagination'] ?? {}),
-        };
-      }
+          if (response['data'] is List) {
+            return {
+              'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
+              'pagination': {},
+            };
+          }
+        }
 
-      if (response['data'] is List) {
-        return {
-          'posts': List<Map<String, dynamic>>.from(response['data'] ?? []),
-          'pagination': {},
-        };
+        if (response is List) {
+          return {
+            'posts': List<Map<String, dynamic>>.from(response),
+            'pagination': {},
+          };
+        }
+
+        throw Exception('Invalid response format: $response');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
     }
 
-    if (response is List) {
-      return {
-        'posts': List<Map<String, dynamic>>.from(response),
-        'pagination': {},
-      };
-    }
-
-    throw Exception('Invalid response format: $response');
+    throw Exception('Failed to fetch posts after $maxRetries retries');
   }
 
   /// Lấy danh sách bài viết của user hiện tại
@@ -70,7 +89,6 @@ class PostsService {
     }
 
     // Gọi getPosts với authorId filter
-    print('DEBUG: Fetching my posts for userId: $userId');
     return getPosts(page: page, limit: limit, authorId: userId);
   }
 
@@ -80,42 +98,88 @@ class PostsService {
     required String content,
     bool isPublic = true,
   }) async {
-    final response = await _api.post(
-      '/posts',
-      body: {'title': title, 'content': content, 'isPublic': isPublic},
-      auth: true,
-    );
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    print('DEBUG Create Post Response: $response');
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.post(
+          '/posts',
+          body: {'title': title, 'content': content, 'isPublic': isPublic},
+          auth: true,
+        );
 
-    if (response is Map) {
-      if (response['success'] == true && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+        if (response is Map) {
+          if (response['success'] == true && response['data'] != null) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          if (response.containsKey('data')) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          return Map<String, dynamic>.from(response);
+        }
+
+        throw Exception('Failed to create post: Invalid response');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
-      if (response.containsKey('data')) {
-        return Map<String, dynamic>.from(response['data']);
-      }
-      return Map<String, dynamic>.from(response);
     }
 
-    throw Exception('Failed to create post: Invalid response');
+    throw Exception('Failed to create post after $maxRetries retries');
   }
 
   /// Lấy chi tiết 1 bài viết
   Future<Map<String, dynamic>> getPostById(int postId) async {
-    final response = await _api.get('/posts/$postId', auth: true);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    if (response is Map) {
-      if (response['success'] == true && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.get('/posts/$postId', auth: true);
+
+        if (response is Map) {
+          if (response['success'] == true && response['data'] != null) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          if (response.containsKey('data')) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          return Map<String, dynamic>.from(response);
+        }
+
+        throw Exception('Failed to fetch post');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
-      if (response.containsKey('data')) {
-        return Map<String, dynamic>.from(response['data']);
-      }
-      return Map<String, dynamic>.from(response);
     }
 
-    throw Exception('Failed to fetch post');
+    throw Exception('Failed to fetch post after $maxRetries retries');
   }
 
   /// Cập nhật bài viết
@@ -130,61 +194,159 @@ class PostsService {
     if (content != null) body['content'] = content;
     if (isPublic != null) body['isPublic'] = isPublic;
 
-    final response = await _api.put('/posts/$postId', body: body, auth: true);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    if (response is Map) {
-      if (response['success'] == true && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.put('/posts/$postId', body: body, auth: true);
+
+        if (response is Map) {
+          if (response['success'] == true && response['data'] != null) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          if (response.containsKey('data')) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          return Map<String, dynamic>.from(response);
+        }
+
+        throw Exception('Failed to update post');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
-      if (response.containsKey('data')) {
-        return Map<String, dynamic>.from(response['data']);
-      }
-      return Map<String, dynamic>.from(response);
     }
 
-    throw Exception('Failed to update post');
+    throw Exception('Failed to update post after $maxRetries retries');
   }
 
   /// Xóa bài viết
   Future<void> deletePost(int postId) async {
-    final response = await _api.delete('/posts/$postId', auth: true);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    if (response is Map && response['success'] == false) {
-      throw Exception(response['message'] ?? 'Failed to delete post');
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.delete('/posts/$postId', auth: true);
+
+        if (response is Map && response['success'] == false) {
+          throw Exception(response['message'] ?? 'Failed to delete post');
+        }
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
+      }
+    }
+
+    if (retryCount >= maxRetries) {
+      throw Exception('Failed to delete post after $maxRetries retries');
     }
   }
 
   /// Toggle like/unlike
   Future<Map<String, dynamic>> toggleLike(int postId) async {
-    final response = await _api.post('/posts/$postId/like', auth: true);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    if (response is Map) {
-      if (response['success'] == true && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.post('/posts/$postId/like', auth: true);
+
+        if (response is Map) {
+          if (response['success'] == true && response['data'] != null) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          if (response.containsKey('data')) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          return Map<String, dynamic>.from(response);
+        }
+
+        throw Exception('Failed to toggle like');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
-      if (response.containsKey('data')) {
-        return Map<String, dynamic>.from(response['data']);
-      }
-      return Map<String, dynamic>.from(response);
     }
 
-    throw Exception('Failed to toggle like');
+    throw Exception('Failed to toggle like after $maxRetries retries');
   }
 
   /// Lấy danh sách likes
   Future<Map<String, dynamic>> getPostLikes(int postId) async {
-    final response = await _api.get('/posts/$postId/likes', auth: true);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
 
-    if (response is Map) {
-      if (response['success'] == true && response['data'] != null) {
-        return Map<String, dynamic>.from(response['data']);
+    while (retryCount < maxRetries) {
+      try {
+        final response = await _api.get('/posts/$postId/likes', auth: true);
+
+        if (response is Map) {
+          if (response['success'] == true && response['data'] != null) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          if (response.containsKey('data')) {
+            return Map<String, dynamic>.from(response['data']);
+          }
+          return Map<String, dynamic>.from(response);
+        }
+
+        throw Exception('Failed to fetch likes');
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
       }
-      if (response.containsKey('data')) {
-        return Map<String, dynamic>.from(response['data']);
-      }
-      return Map<String, dynamic>.from(response);
     }
 
-    throw Exception('Failed to fetch likes');
+    throw Exception('Failed to fetch likes after $maxRetries retries');
   }
 }

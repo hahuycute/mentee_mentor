@@ -5,9 +5,11 @@ class BookingsService {
 
   Future<Map<String, dynamic>> createBooking({
     required int scheduleId,
+    String? notes,
   }) async {
     final data = await _api.post('/bookings', body: {
       'scheduleId': scheduleId,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
     }, auth: true);
     return Map<String, dynamic>.from(data as Map);
   }
@@ -17,6 +19,9 @@ class BookingsService {
     if (data is List) {
       return List<Map<String, dynamic>>.from(data);
     }
+    if (data is Map && data['data'] is List) {
+      return List<Map<String, dynamic>>.from(data['data']);
+    }
     if (data is Map && data['bookings'] is List) {
       return List<Map<String, dynamic>>.from(data['bookings']);
     }
@@ -25,6 +30,11 @@ class BookingsService {
 
   Future<Map<String, dynamic>> confirmBooking(int bookingId) async {
     final data = await _api.patch('/bookings/$bookingId/confirm', auth: true);
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  Future<Map<String, dynamic>> rejectBooking(int bookingId) async {
+    final data = await _api.patch('/bookings/$bookingId/reject', auth: true);
     return Map<String, dynamic>.from(data as Map);
   }
 

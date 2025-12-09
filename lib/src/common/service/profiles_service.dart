@@ -29,6 +29,7 @@ class ProfilesService {
 
   Future<Map<String, dynamic>> upsertMentorProfile({
     required String fullName,
+    String? phoneNumber,
     String? school,
     List<int>? expertiseIds,
     String? degree,
@@ -38,6 +39,7 @@ class ProfilesService {
   }) async {
     final fields = <String, String>{
       'fullName': fullName,
+      if (phoneNumber != null && phoneNumber.isNotEmpty) 'phoneNumber': phoneNumber,
       if (school != null && school.isNotEmpty) 'school': school,
       if (degree != null && degree.isNotEmpty) 'degree': degree,
       if (bio != null && bio.isNotEmpty) 'bio': bio,
@@ -75,12 +77,14 @@ class ProfilesService {
 
   Future<Map<String, dynamic>> upsertMenteeProfile({
     required String fullName,
+    String? phoneNumber,
     String? goals,
     List<int>? interestIds,
     File? avatarFile,
   }) async {
     final fields = <String, String>{
       'fullName': fullName,
+      if (phoneNumber != null && phoneNumber.isNotEmpty) 'phoneNumber': phoneNumber,
       if (goals != null && goals.isNotEmpty) 'goals': goals,
     };
 

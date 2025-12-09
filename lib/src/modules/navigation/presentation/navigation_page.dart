@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mentee_mentor/src/modules/add_post/presentation/add_post_page.dart';
 import 'package:mentee_mentor/src/modules/main_home/presentation/main_home_page.dart';
-import 'package:mentee_mentor/src/modules/noti/presentation/noti_page.dart';
 import 'package:mentee_mentor/src/modules/profile/profile_page.dart';
-import 'package:mentee_mentor/src/modules/search/presentation/searching_page.dart';
+import 'package:mentee_mentor/src/modules/my_schedules/presentation/my_schedule_page.dart';
+import 'package:mentee_mentor/src/modules/booking/presentation/booking_list_page.dart';
+import 'package:mentee_mentor/src/modules/sessions/presentation/sessions_list_page.dart';
 import 'package:motion_tab_bar/MotionTabBar.dart';
 import 'package:motion_tab_bar/MotionTabBarController.dart';
 
@@ -20,8 +20,9 @@ class _NavigationPageState extends State<NavigationPage> with TickerProviderStat
   late MotionTabBarController _tabController;
   final List<Widget> _pages = [
     MainHomePage(),
-    SearchingPage(),
-    NotiPage(),
+    MySchedulesPage(),
+    BookingListPage(),
+    SessionsListPage(),
     ProfilePage(),
   ];
 
@@ -29,22 +30,12 @@ class _NavigationPageState extends State<NavigationPage> with TickerProviderStat
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    _tabController = MotionTabBarController(initialIndex: _currentIndex, length: 4, vsync: this);
+    _tabController = MotionTabBarController(initialIndex: _currentIndex, length: 5, vsync: this);
     _tabController.addListener(() {
       setState(() {
         _currentIndex = _tabController.index;
       });
     });
-  }
-
-  Future<void> _goAddPost() async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddPostPage()),
-    );
-    // Nếu đăng bài thành công, có thể reload lại MainHomePage nếu cần
-    if (result == true && _currentIndex == 0) {
-      setState(() {});
-    }
   }
 
   @override
@@ -60,8 +51,8 @@ class _NavigationPageState extends State<NavigationPage> with TickerProviderStat
       bottomNavigationBar: MotionTabBar(
         controller: _tabController,
         initialSelectedTab: "Home",
-        labels: const ["Home", "Search", "Noti", "Profile"],
-        icons: const [Icons.home, Icons.search, Icons.notifications, Icons.person],
+        labels: ["Home", "Calen", "Book", "Sess", "Profile"],
+        icons: [Icons.home, Icons.calendar_today, Icons.event, Icons.list, Icons.person],
         tabSize: 50,
         tabBarHeight: 55,
         textStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
@@ -75,13 +66,7 @@ class _NavigationPageState extends State<NavigationPage> with TickerProviderStat
           });
         },
       ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton(
-              onPressed: _goAddPost,
-              child: const Icon(Icons.add),
-              tooltip: 'Đăng bài',
-            )
-          : null,
+      
     );
   }
 }

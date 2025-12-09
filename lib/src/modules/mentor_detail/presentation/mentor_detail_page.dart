@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mentee_mentor/src/common/api/api_exception.dart';
 import 'package:mentee_mentor/src/common/service/bookings_service.dart';
 import 'package:mentee_mentor/src/common/service/notifications_service.dart';
-import 'package:mentee_mentor/src/common/service/schedules_service.dart';
 import 'package:mentee_mentor/src/modules/my_booking/presentation/my_booking_page.dart';
 
 class MentorDetailPage extends StatefulWidget {
@@ -15,12 +14,11 @@ class MentorDetailPage extends StatefulWidget {
 }
 
 class _MentorDetailPageState extends State<MentorDetailPage> {
-  final _schedulesService = SchedulesService();
   final _bookingsService = BookingsService();
   final _notificationsService = NotificationsService();
-  List<Map<String, dynamic>> _availableSchedules = [];
-  bool _loadingSchedules = false;
-  Set<int> _bookingSchedules = {};
+  final List<Map<String, dynamic>> _availableSchedules = [];
+  final bool _loadingSchedules = false;
+  final Set<int> _bookingSchedules = {};
   @override
   void initState() {
     super.initState();
@@ -155,7 +153,7 @@ class _MentorDetailPageState extends State<MentorDetailPage> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withAlpha(51),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -443,10 +441,6 @@ class _MentorDetailPageState extends State<MentorDetailPage> {
   Future<void> _sendNotificationToMentor(Map<String, dynamic> schedule) async {
     try {
       final mentorId = widget.mentor['id'] as int;
-      final mentorName =
-          widget.mentor['mentorProfile']?['fullName'] ??
-          widget.mentor['email'] ??
-          'Mentor';
       final topic = schedule['topic'] ?? 'Phiên mentoring';
       final startTime = _formatDateTime(schedule['startAt']);
 
@@ -459,7 +453,6 @@ class _MentorDetailPageState extends State<MentorDetailPage> {
       );
     } catch (e) {
       // Không hiển thị lỗi cho user vì đây chỉ là thông báo phụ
-      print('Error sending notification: $e');
     }
   }
 

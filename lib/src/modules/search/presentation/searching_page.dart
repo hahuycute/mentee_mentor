@@ -89,8 +89,11 @@ class _SearchingPageState extends State<SearchingPage> {
           selected: selected,
           onSelected: (v) {
             setState(() {
-              if (v) _selectedExpertise.add(s);
-              else _selectedExpertise.remove(s);
+              if (v) {
+                _selectedExpertise.add(s);
+              } else {
+                _selectedExpertise.remove(s);
+              }
             });
             _search();
           },

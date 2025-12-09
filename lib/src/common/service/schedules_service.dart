@@ -1,5 +1,4 @@
 import 'package:mentee_mentor/src/common/api/api_client.dart';
-import 'package:mentee_mentor/src/common/api/api_exception.dart';
 
 class SchedulesService {
   final _api = ApiClient();
@@ -71,5 +70,15 @@ class SchedulesService {
       return List<Map<String, dynamic>>.from(raw);
     }
     return [];
+  }
+
+  Future<Map<String, dynamic>> bookSchedule(int scheduleId, {String? notes}) async {
+    final raw = await _api.post('/bookings', body: {
+      'scheduleId': scheduleId,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    }, auth: true);
+
+    final data = (raw is Map && raw['data'] != null) ? raw['data'] : raw;
+    return Map<String, dynamic>.from(data as Map);
   }
 }

@@ -62,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -173,7 +174,8 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               );
                             },
-                    child: const Text('Chưa có tài khoản? Đăng ký'),
+                    child: const Text('Chưa có tài khoản? Đăng ký',
+                    style: TextStyle(color: Colors.blue),),
                   ),
                 ],
               ),

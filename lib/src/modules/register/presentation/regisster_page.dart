@@ -67,7 +67,7 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      
+      backgroundColor: Colors.white,  
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -135,7 +135,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 16),
                   
                   DropdownButtonFormField<String>(
-                    value: _role,
+                    initialValue: _role,
                     decoration: InputDecoration(
                       labelText: 'Vai trò',
                       prefixIcon: const Icon(Icons.person),
@@ -188,7 +188,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: _loading ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Đã có tài khoản? Đăng nhập'),
+                    child: const Text('Đã có tài khoản? Đăng nhập', 
+                    style: TextStyle(color: Colors.blue),),
                   ),
                 ],
               ),

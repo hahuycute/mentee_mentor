@@ -46,10 +46,34 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> me() async {
-    final raw = await _api.get('/auth/me', auth: true);
-    final envelope = (raw is Map) ? raw : <String, dynamic>{};
-    final data = (envelope['data'] is Map) ? envelope['data'] as Map : envelope;
-    return Map<String, dynamic>.from(data as Map);
+    // Retry logic for rate limiting
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
+
+    while (retryCount < maxRetries) {
+      try {
+        final raw = await _api.get('/auth/me', auth: true);
+        final envelope = (raw is Map) ? raw : <String, dynamic>{};
+        final data = (envelope['data'] is Map) ? envelope['data'] as Map : envelope;
+        return Map<String, dynamic>.from(data);
+      } catch (e) {
+        
+        // Check if it's a rate limiting error (429)
+        if (e.toString().contains('429') || e.toString().contains('Too many')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(retryDelay);
+            continue;
+          }
+        }
+        
+        // Re-throw if not rate limited or max retries reached
+        rethrow;
+      }
+    }
+
+    throw Exception('Failed to fetch user info after $maxRetries retries');
   }
 
   Future<void> logout() => TokenStorage.clearToken();
